@@ -34,12 +34,6 @@ trn=pd.read_csv(path_Multi_Imu_Mag,header=0)
 # trn=trn[(int)(trn.shape[0]/2)+1000:-1]
 trn.head(5)
 
-# trn=trn.drop(labels='timestamp' , axis = 1)
-# trn=trn.drop(labels='LineNo' , axis = 1)
-# trn=trn.drop(labels='TimeUS' , axis = 1)
-# trn=trn.drop(labels='LineNo.1' , axis = 1)
-# trn=trn.drop(labels='timestamp' , axis = 1)
-# trn=trn.drop(labels='TimeUS.1' , axis = 1)
 trn = trn.loc[:, (trn != trn.iloc[0]).any()]
 trn=trn.sample(frac=1.0)
 
@@ -57,12 +51,11 @@ train_data,test_data,train_label,test_label=train_test_split(X_trn,Y_trn,test_si
 def create_dnn_model():
 #     weights_class={0:2,1:2,2:3,3:2,4:2}
     model = tf.keras.models.Sequential([
-#         tf.keras.layers.Flatten(input_shape=(28, 28, 1)),
+        tf.keras.layers.Flatten(input_shape=(28, 28, 1)),
         tf.keras.layers.Input(shape=(X_trn.shape[1],)),
         tf.keras.layers.Dense(128, activation='relu'),
         tf.keras.layers.Dropout(0.2),
-#         tf.keras.layers.Dense(512, activation='relu'),
-#         tf.keras.layers.Dropout(0.2),
+
         tf.keras.layers.Dense(3, activation='softmax')
     ])
     model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
@@ -85,21 +78,11 @@ def create_cnn_model():
 
 # create the ensemble model
 model1 = KerasClassifier(build_fn=create_dnn_model, epochs=200)
-model1._estimator_type = "classifier"
-model2 = KerasClassifier(build_fn=create_cnn_model, epochs=200)
-model2._estimator_type = "classifier"
-# model3 = KerasClassifier(build_fn=create_dnn_model, epochs=200)
-# model3._estimator_type = "classifier"
-# model4 = KerasClassifier(build_fn=create_cnn_model, epochs=200)
-# model4._estimator_type = "classifier"
 
-# the weight of each class, if not given, all classes are supposed to have the same weight.
-weights_class={0:0.6,
-               1:0.1,
-               2:0.1,
-               3:0.1,
-               4:0.1,
-}
+model2 = KerasClassifier(build_fn=create_cnn_model, epochs=200)
+
+
+weights_class={}
 
 history1=model1.fit(train_data,train_label,epochs=200,validation_split=0.2,class_weight=weights_class)#
 history2=model2.fit(train_data,train_label,epochs=200,validation_split=0.2,class_weight=weights_class)#
@@ -110,7 +93,7 @@ scoress=[test_acc1,test_acc2]
 score=[(scoress[0])/sum(scoress),(scoress[1])/sum(scoress)]
 
 models = [('model1', model1), ('model2', model2)]
-ensemble = VotingClassifier(estimators=models,weights=score, voting='soft')  # weights=score
+ensemble = VotingClassifier(estimators=models,weights=score)  # weights=score
 
 ensemble.fit(train_data, train_label)
 
@@ -145,8 +128,5 @@ print("F1:",f1)
 recall = recall_score(test_label, test_predictions, average='macro')
 print('recall:', recall)
 
-labels=[0,1,2]
-test_label=label_binarize(test_label,classes=labels)
-test_predictions=label_binarize(test_predictions,classes=labels)
 roc_auc=roc_auc_score(test_label, test_predictions,multi_class='ovo')
 print('Roc_auc:', roc_auc)
